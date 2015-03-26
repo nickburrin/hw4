@@ -1,0 +1,13 @@
+ass
+bin/
+*.settings/
+
+# Package files #
+*.jar
+*.war
+*.ear
+*.classpath
+*.project
+*.git/
+class_files/
+*.DS_store
