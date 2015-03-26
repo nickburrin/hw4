@@ -40,6 +40,7 @@ public class Client {
         			myClient.sendCommand(name + " " + msg);
         		}
         	}
+        	System.exit(0);
         } catch (Exception e) { e.printStackTrace(); }
     }
     
@@ -55,13 +56,16 @@ public class Client {
     	// Try each host in a round-robin fashion. Go to next after timeout
     	int i = 0;
     	Host h = servers.get(i);
+    	
     	while (true) {
     		try {
 				serversock = new Socket();   
 				serversock.connect(new InetSocketAddress(h.name,h.port), TIMEOUT);
+				
 				din = new Scanner(serversock.getInputStream());
 				pout = new PrintStream(serversock.getOutputStream());
 				// send command to server
+				System.out.println(command + " to server " + h.port);
 		    	pout.println(command);
 		    	pout.flush();
 		    	
@@ -73,14 +77,16 @@ public class Client {
 		    	
 		    	serversock.close();
 				break;
-			} catch(NoSuchElementException e) {		// Connected to server but then the server closed the connection
+			} catch(NoSuchElementException e) {		// Connected to server but then the server drops the message
 				i = (i+1) % numOfServers;
 				h = servers.get(i);
 				continue;
-			} catch (Exception e) {					// The server is down
+			} catch(ConnectException e) {			// The server is down
 				i = (i+1) % numOfServers;
 				h = servers.get(i);
 				continue;
+			} catch(Exception e){
+				e.printStackTrace();
 			}
     	}
     }
@@ -97,6 +103,7 @@ public class Client {
     			for(int i = 0; i < numOfServers; i++){
     				server = scan.nextLine().split(":");
     				servers.add(new Host(server[0], Integer.parseInt(server[1])));
+    				System.out.println("Adding server " + server[0] + ":" + server[1]);
     			}
 	}
 }

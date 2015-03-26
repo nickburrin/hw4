@@ -17,9 +17,9 @@ class Rebooter extends Thread {
 		
 		private void reboot() {
 			// TODO Auto-generated method stub
-			myServer.timeToSleep = false;
 			syncResource();
-			myServer.clientMessagesReceived.set(0);
+			System.out.println("Server " + myServer.ID + " alive");
+			myServer.alive = true;
 		}
 
 		private void syncResource() {

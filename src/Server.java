@@ -6,11 +6,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.io.*;
 
 public class Server {
-	static final int TIMEOUT = 900;
+	static final int TIMEOUT = 100;
 	static int numberOfServers = 0;
 	static int numberOfBooks = 0;
 	static List<Host> servers = new ArrayList<Host>();
-	static List<String> commands = new ArrayList<String>();
+	static List<CrashCommand> crashes = new ArrayList<CrashCommand>();
+	static int myPort;
 	String ipa;
 	int port;
 	Library lib;
@@ -21,37 +22,30 @@ public class Server {
 	Lamport lm;
 	boolean timeToSleep = false;
 	ServerSocket listener = null;
+	boolean continueToCrash = false;
+	boolean alive = true;
 
 	Server(int numBooks, int id) {
 		this.lib = new Library(numberOfBooks);
 		this.ID = id;
 
-		Host host = servers.get(id-1);
-		ipa = host.name;
-		port = host.port;
+		port = myPort;
 		lm = new Lamport(servers, ID);
 
-		for (String c: commands) {
-			StringTokenizer st = new StringTokenizer(c);
-			st.nextToken();		// discard "crash"
-			K_MESSAGES = Integer.parseInt(st.nextToken());
-			SLEEP_TIME = Integer.parseInt(st.nextToken());
+		if(crashes.isEmpty() == false){
+			continueToCrash = true;
+			K_MESSAGES = crashes.get(0).commands;
+			SLEEP_TIME = crashes.get(0).sleepTime;
 		}
-
-		// Set to max value if there is no command for this server
-		if (K_MESSAGES == 0) K_MESSAGES = Integer.MAX_VALUE;
 
 		// start the listener
 		try {
+			System.out.println("server " + ID + " on port " + port);
 			listener = new ServerSocket(port);
 		} catch (IOException e1) {
 			e1.printStackTrace();
 			System.exit(1);
 		}
-
-		// Get Library from any server that is up
-		Thread t = new Rebooter(this);
-		t.start();
 	}
 
 	public static void main(String[] args) throws Exception {
@@ -67,18 +61,51 @@ public class Server {
 				// wait for requests and start a worker thread when accepted
 				while (true) {
 					if (myServer.timeToSleep) {		// sleep then reboot
+						System.out.println("Server " + myServer.ID + " crashing");
+						myServer.timeToSleep  = false;
 						myServer.listener.close();
 						Thread.sleep(myServer.SLEEP_TIME);
+
+						crashes.remove(0);
+						if(crashes.isEmpty() == false){
+							myServer.K_MESSAGES = crashes.get(0).commands;
+							myServer.SLEEP_TIME = crashes.get(0).sleepTime;
+						}
+						else{
+							myServer.continueToCrash = false;
+						}
+
 						myServer.listener = new ServerSocket(myServer.port);
 						Thread t = new Rebooter(myServer);
 						t.start();
 					}
 
-					s = myServer.listener.accept();
+					if(myServer.alive == true){
+						s = myServer.listener.accept();
+						// get the request that was sent
+			            String command = new Scanner(s.getInputStream()).nextLine();
+			            
+						if(command.charAt(0) != 'c'){
+							// Start worker to handle the server request
+							Thread t = new TCPServerHandler(s, myServer, command);
+							t.start();
+						}
+						else{
+							// Start worker to handle the client request
+							Thread t = new TCPClientHandler(s, myServer, command);
+							t.start();
 
-					// Start worker to handle the request
-					Thread t = new TCPServerThread(s,myServer);
-					t.start();
+							if(myServer.continueToCrash == true){
+								myServer.K_MESSAGES--;
+								// After completing a client request, tell the main thread to 
+								// sleep if it has fulfilled k requests
+								if((myServer.K_MESSAGES == 0) && (myServer.continueToCrash == true)) {
+									myServer.alive = false;
+									myServer.timeToSleep = true;
+								}
+							}
+						}
+					}
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -106,13 +133,17 @@ public class Server {
 		//Get other server information
 		for(int i = 0; i < numberOfServers; i++){
 			//Add server to list
+
 			String[] server = scan.nextLine().split(":");
-			servers.add( new Host(server[0], Integer.parseInt(server[1])));
+			if(i == (id-1))
+				myPort = Integer.parseInt(server[1]);
+			servers.add(new Host(server[0], 100 + i*10));
 		}
 
 		//Save crash commands
 		while(scan.hasNextLine()){
-			commands.add(scan.nextLine());
+			String[] cmd = scan.nextLine().split(" ");
+			crashes.add(new CrashCommand(Integer.parseInt(cmd[1]), Integer.parseInt(cmd[2])));
 		}
 
 		return id;

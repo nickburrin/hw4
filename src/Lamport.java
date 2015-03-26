@@ -146,7 +146,7 @@ public class Lamport {
     // Gets a socket for communicating with another server
     public void getSocket(Host h) throws IOException, NoSuchElementException {
     	server = new Socket();   
-		server.connect(new InetSocketAddress(h.name,h.port),Server.TIMEOUT);
+		server.connect(new InetSocketAddress(h.name,h.port), Server.TIMEOUT);
     	
 		din = new Scanner(server.getInputStream());
         pout = new PrintStream(server.getOutputStream());
